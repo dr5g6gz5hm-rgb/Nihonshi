@@ -29,16 +29,22 @@ button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .end{text-align:center;padding:30px 10px}
 .small{font-size:12px;color:var(--sub);margin-top:16px;text-align:center}
 button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#panel{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:10px;max-height:46vh;overflow-y:auto}
+.prow{display:flex;gap:8px;margin-bottom:8px}
+.chip{display:flex;align-items:center;gap:8px;padding:7px 4px;font-size:14px;border-bottom:1px solid var(--line)}
+.chip input{width:18px;height:18px;accent-color:var(--accent)}
+.chip small{color:var(--sub)}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>日本史 一問一答</h1>
 <div class="row">
-<select id="sec"></select>
+<button id="secbtn">単元: すべて</button>
 <button id="shuf">順番どおり</button>
 <button id="weak">全問</button>
 </div>
+<div id="panel" class="hide"></div>
 <div class="stat" id="stat"></div>
 <div class="bar"><i id="bar"></i></div>
 <div id="main"></div>
@@ -399,12 +405,25 @@ var st={ng:{}};
 try{var r=localStorage.getItem(K);if(r)st=JSON.parse(r)||st;if(!st.ng)st.ng={}}catch(e){}
 function save(){try{localStorage.setItem(K,JSON.stringify(st))}catch(e){}}
 var $=function(i){return document.getElementById(i)};
-var secEl=$("sec"),main=$("main");
-[["all","すべての単元"],[S1,S1],[S2,S2],[S3,S3],[S4,S4],[S5,S5],[S6,S6],[S7,S7],[S8,S8],[S9,S9],[S10,S10],[S11,S11],[S12,S12],[S13,S13],[S14,S14],[S15,S15],[S16,S16],[S17,S17],[S18,S18],[S19,S19],[S20,S20],[S21,S21]].forEach(function(o){var e=document.createElement("option");e.value=o[0];e.textContent=o[1];secEl.appendChild(e)});
+var main=$("main");
+var SECS=[];D.forEach(function(d){if(SECS.indexOf(d[0])<0)SECS.push(d[0])});
+if(!st.off)st.off={};
+var panel=$("panel");
+function isOn(x){return !st.off[x]}
+function btnText(){var n=SECS.filter(isOn).length;$("secbtn").textContent="単元: "+(n===SECS.length?"すべて":n+" / "+SECS.length+" 選択中")}
+function drawPanel(){
+  var h='<div class="prow"><button id="all1">すべて選択</button><button id="all0">すべて解除</button></div>';
+  SECS.forEach(function(x,k){var c=D.filter(function(d){return d[0]===x}).length;h+='<label class="chip"><input type="checkbox" data-k="'+k+'"'+(isOn(x)?' checked':'')+'><span>'+x+' <small>'+c+'問</small></span></label>'});
+  panel.innerHTML=h;
+  $("all1").onclick=function(){st.off={};save();drawPanel();btnText();build()};
+  $("all0").onclick=function(){SECS.forEach(function(x){st.off[x]=1});save();drawPanel();btnText();build()};
+  Array.prototype.forEach.call(panel.querySelectorAll("input"),function(el){el.onchange=function(){var x=SECS[+el.getAttribute("data-k")];if(el.checked)delete st.off[x];else st.off[x]=1;save();btnText();build()}});
+}
+$("secbtn").onclick=function(){panel.classList.toggle("hide");this.className=panel.classList.contains("hide")?"":"on"};
 var shuffle=false,weakOnly=false,list=[],i=0,done=0,right=0,shown=false;
 function build(){
   list=D.map(function(d,n){return{id:n,d:d}}).filter(function(x){
-    return (secEl.value==="all"||x.d[0]===secEl.value)&&(!weakOnly||st.ng[x.id]);
+    return isOn(x.d[0])&&(!weakOnly||st.ng[x.id]);
   });
   if(shuffle)for(var k=list.length-1;k>0;k--){var j=Math.floor(Math.random()*(k+1));var t=list[k];list[k]=list[j];list[j]=t}
   i=0;done=0;right=0;shown=false;render();
@@ -430,11 +449,10 @@ function grade(ok){
   if(ok){delete st.ng[id];right++}else st.ng[id]=1;
   save();done++;i++;shown=false;render();
 }
-secEl.onchange=build;
 $("shuf").onclick=function(){shuffle=!shuffle;this.textContent=shuffle?"ランダム":"順番どおり";this.className=shuffle?"on":"";build()};
 $("weak").onclick=function(){weakOnly=!weakOnly;this.textContent=weakOnly?"苦手のみ":"全問";this.className=weakOnly?"on":"";build()};
-$("reset").onclick=function(){if(confirm("苦手の記録をすべて消しますか?")){st={ng:{}};save();build()}};
-build();
+$("reset").onclick=function(){if(confirm("苦手の記録をすべて消しますか?")){st={ng:{},off:{}};save();drawPanel();btnText();build()}};
+drawPanel();btnText();build();
 </script>
 </body>
 </html>
