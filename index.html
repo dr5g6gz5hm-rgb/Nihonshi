@@ -581,7 +581,6 @@ var D=[
 [S34,146,"江戸幕府はキリシタン摘発のため、キリスト像やマリア像を踏ませた。これを何というか。","絵踏"],
 [S34,146,"江戸幕府は一般民衆を必ずどこかの寺院に所属させ、キリシタンでないことを証明させたが、この制度を何というか。","寺請制度"],
 [S34,146,"寺請制度で、寺院に所属した人々を何というか。","檀家"],
-[S34,146,"寺請制度にもとづき、寺院が結婚・奉公・旅行などの際に発行する身分証明書を何というか。","寺請証明"],
 [S34,146,"江戸幕府が禁教の目的で行った民衆の信仰調査を何というか。","宗門改め"],
 [S34,147,"宗門改めの結果、作成された帳簿を何というか。","宗門改帳(宗門人別改帳)"],
 [S34,147,"法華を信じない者の施しを受けず、また施さずとする仏教の日蓮宗の宗派も、キリスト教とともに弾圧されたが、この派を何というか。","不受不施派"],
@@ -612,6 +611,8 @@ var K="nihonshi_v2";
 var st={ng:{}};
 try{var r=localStorage.getItem(K);if(r)st=JSON.parse(r)||st;if(!st.ng)st.ng={}}catch(e){}
 function save(){try{localStorage.setItem(K,JSON.stringify(st))}catch(e){}}
+if(!st.mig)st.mig=0;
+if(st.mig<1){var R=523,nn={};Object.keys(st.ng).forEach(function(k){k=+k;if(k<R)nn[k]=1;else if(k>R)nn[k-1]=1});st.ng=nn;st.mig=1;save()}
 var $=function(i){return document.getElementById(i)};
 var main=$("main");
 var SECS=[];D.forEach(function(d){if(SECS.indexOf(d[0])<0)SECS.push(d[0])});
@@ -659,7 +660,7 @@ function grade(ok){
 }
 $("shuf").onclick=function(){shuffle=!shuffle;this.textContent=shuffle?"ランダム":"順番どおり";this.className=shuffle?"on":"";build()};
 $("weak").onclick=function(){weakOnly=!weakOnly;this.textContent=weakOnly?"苦手のみ":"全問";this.className=weakOnly?"on":"";build()};
-$("reset").onclick=function(){if(confirm("苦手の記録をすべて消しますか?")){st={ng:{},off:{}};save();drawPanel();btnText();build()}};
+$("reset").onclick=function(){if(confirm("苦手の記録をすべて消しますか?")){st={ng:{},off:{},mig:1};save();drawPanel();btnText();build()}};
 drawPanel();btnText();build();
 </script>
 </body>
