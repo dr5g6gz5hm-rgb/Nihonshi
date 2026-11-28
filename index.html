@@ -38,6 +38,13 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outlin
 .chip{display:flex;align-items:center;gap:8px;padding:7px 4px;font-size:14px;border-bottom:1px solid var(--line)}
 .chip input{width:18px;height:18px;accent-color:var(--accent)}
 .chip small{color:var(--sub)}
+.choices{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.choice{text-align:left;padding:14px;font-size:16px;width:100%}
+.res{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;text-align:left}
+.res b{color:var(--red)}.res i{font-style:normal;color:var(--green);font-weight:700}
+.score{font-size:30px;font-weight:700;color:var(--accent)}
+.inp{width:100%;font:inherit;font-size:18px;padding:12px;margin-top:12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+.ovr{font-size:12px;padding:4px 10px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -45,6 +52,9 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outlin
 <h1>日本史 一問一答</h1>
 <div class="row">
 <button id="secbtn">単元: すべて</button>
+<select id="cnt"><option value="10">10問</option><option value="20">20問</option><option value="30">30問</option><option value="50">50問</option><option value="100">100問</option><option value="0">全問</option></select>
+<button id="test">モード: 練習</button>
+<select id="ttype" class="hide"><option value="c">4択</option><option value="w">記述</option></select>
 <button id="shuf">順番どおり</button>
 <button id="weak">全問</button>
 </div>
@@ -693,15 +703,93 @@ function drawPanel(){
   Array.prototype.forEach.call(panel.querySelectorAll("input"),function(el){el.onchange=function(){var x=SECS[+el.getAttribute("data-k")];if(el.checked)delete st.off[x];else st.off[x]=1;save();btnText();build()}});
 }
 $("secbtn").onclick=function(){panel.classList.toggle("hide");this.className=panel.classList.contains("hide")?"":"on"};
-var shuffle=false,weakOnly=false,list=[],i=0,done=0,right=0,shown=false;
+var shuffle=false,weakOnly=false,list=[],i=0,done=0,right=0,shown=false,testMode=false,tch=[],tans=[],tres=[],tw=false;
+function shufA(a){for(var k=a.length-1;k>0;k--){var j=Math.floor(Math.random()*(k+1));var t=a[k];a[k]=a[j];a[j]=t}return a}
+function uniq(a){return a.filter(function(v,k){return a.indexOf(v)===k})}
+function makeChoices(x){
+  var a=x.d[3],same=[],other=[];
+  D.forEach(function(d){if(d[3]!==a){(d[0]===x.d[0]?same:other).push(d[3])}});
+  same=uniq(same);other=uniq(other).filter(function(v){return same.indexOf(v)<0});
+  shufA(same);shufA(other);
+  var pick=same.slice(0,3);if(pick.length<3)pick=pick.concat(other.slice(0,3-pick.length));
+  return shufA(pick.concat([a]));
+}
+function splitTop(str,sepRe){
+  var out=[],cur='',d=0;
+  for(var k=0;k<str.length;k++){var c=str.charAt(k);
+    if(c==='('||c==='（')d++;else if(c===')'||c==='）')d=Math.max(0,d-1);
+    if(d===0&&sepRe.test(c)){out.push(cur);cur=''}else cur+=c}
+  out.push(cur);return out.filter(function(v){return v.trim()!==''})
+}
+function normS(x){
+  x=x.normalize('NFKC').toLowerCase().replace(/[\s=・･()]/g,'');
+  return x.replace(/[\u30a1-\u30f6]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-96)})
+}
+function variants(p){
+  var v=[],m=p.match(/^(.*?)[\(（](.*)[\)）](.*)$/);
+  if(m){var pre=m[1],inn=m[2],post=m[3];
+    v.push(pre+post);v.push(pre+inn+post);
+    if(post===''){v.push(inn);inn.split('・').forEach(function(t){v.push(t)})}
+  }else v.push(p);
+  var more=[];
+  v.forEach(function(t){if(t.indexOf('=')>=0)more.push(t.split('=').pop());var mm=t.match(/^(\d+)年$/);if(mm)more.push(mm[1])});
+  return v.concat(more).map(normS).filter(function(t){return t});
+}
+function check(inp,ans){
+  var A=splitTop(ans,/[・]/),U=splitTop(inp,/[・､、,，\/／\s　+＋]/);
+  if(!U.length)return false;
+  if(A.length===1)return variants(ans).indexOf(normS(inp))>=0;
+  if(U.length!==A.length)return false;
+  var used=[];
+  return A.every(function(a){var vs=variants(a);for(var k=0;k<U.length;k++){if(used.indexOf(k)<0&&vs.indexOf(normS(U[k]))>=0){used.push(k);return true}}return false});
+}
+function showResult(){
+  var n=list.length,ok=tres.filter(function(v){return v}).length,h='';
+  list.forEach(function(x,k){if(!tres[k])h+='<div class="res">'+x.d[2]+'<br><b>あなた:'+(tans[k]||'(未入力)')+'</b><br>正解:<i>'+x.d[3]+'</i>'+(tw?'<br><button class="ovr" data-k="'+k+'">正解にする</button>':'')+'</div>'});
+  $("stat").textContent="テスト終了";
+  main.innerHTML='<div class="card end"><div class="meta">結果</div><div class="score">'+ok+' / '+n+'</div><div class="meta">'+Math.round(ok/n*100)+'点'+(ok<n?'(間違えた問題は「苦手」に追加しました)':'(全問正解!)')+'</div></div>'+(h?'<div style="margin-top:12px">'+h+'</div>':'')+'<button class="show" id="again">もう一度</button>';
+  $("again").onclick=build;
+  Array.prototype.forEach.call(main.querySelectorAll(".ovr"),function(b){b.onclick=function(){var k=+b.getAttribute("data-k");tres[k]=true;delete st.ng[list[k].id];save();showResult()}});
+}
+function renderTest(){
+  var n=list.length;
+  $("stat").textContent="テスト("+(tw?"記述":"4択")+") "+Math.min(i+1,n)+" / "+n;
+  $("bar").style.width=(n?i/n*100:0)+"%";
+  if(!n){main.innerHTML='<div class="card end">問題がありません。</div>';return}
+  if(i>=n){
+    if(!tres.length){tres=list.map(function(x,k){var okk=tw?check(tans[k]||'',x.d[3]):tans[k]===x.d[3];if(!okk)st.ng[x.id]=1;return okk});save()}
+    showResult();return;
+  }
+  var x=list[i];
+  if(tw){
+    main.innerHTML='<div class="card" style="min-height:150px"><div class="q">'+x.d[2]+'</div></div><input id="ans" class="inp" type="text" lang="ja" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="答えを入力"><div class="grade"><button class="ng" id="skip">わからない</button><button class="ok" id="go">答える</button></div>';
+    var inp=$("ans");
+    function submit(v){tans[i]=v;i++;renderTest()}
+    $("go").onclick=function(){submit(inp.value)};
+    $("skip").onclick=function(){submit('')};
+    inp.onkeydown=function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){submit(inp.value)}};
+    try{inp.focus()}catch(e){}
+    return;
+  }
+  var ch=tch[i];
+  var h2='<div class="card" style="min-height:150px"><div class="q">'+x.d[2]+'</div></div><div class="choices">';
+  ch.forEach(function(c,k){h2+='<button class="choice" data-k="'+k+'">'+c+'</button>'});
+  main.innerHTML=h2+'</div>';
+  Array.prototype.forEach.call(main.querySelectorAll(".choice"),function(b){b.onclick=function(){tans[i]=ch[+b.getAttribute("data-k")];i++;renderTest()}});
+}
 function build(){
   list=D.map(function(d,n){return{id:n,d:d}}).filter(function(x){
     return isOn(x.d[0])&&(!weakOnly||st.ng[x.id]);
   });
-  if(shuffle)for(var k=list.length-1;k>0;k--){var j=Math.floor(Math.random()*(k+1));var t=list[k];list[k]=list[j];list[j]=t}
-  i=0;done=0;right=0;shown=false;render();
+  if(shuffle||testMode)shufA(list);
+  var N=+$("cnt").value;if(N>0&&list.length>N)list=list.slice(0,N);
+  i=0;done=0;right=0;shown=false;tans=[];
+  tres=[];tw=testMode&&$("ttype").value==="w";
+  tch=testMode&&!tw?list.map(makeChoices):[];
+  render();
 }
 function render(){
+  if(testMode){renderTest();return}
   var n=Object.keys(st.ng).length;
   $("stat").textContent="苦手 "+n+"問 / 今回 "+done+"/"+list.length+"問 正解 "+right;
   $("bar").style.width=(list.length?done/list.length*100:0)+"%";
@@ -724,8 +812,11 @@ function grade(ok){
 }
 $("shuf").onclick=function(){shuffle=!shuffle;this.textContent=shuffle?"ランダム":"順番どおり";this.className=shuffle?"on":"";build()};
 $("weak").onclick=function(){weakOnly=!weakOnly;this.textContent=weakOnly?"苦手のみ":"全問";this.className=weakOnly?"on":"";build()};
+$("test").onclick=function(){testMode=!testMode;this.textContent="モード: "+(testMode?"テスト":"練習");this.className=testMode?"on":"";$("ttype").className=testMode?"":"hide";build()};
+$("ttype").onchange=function(){st.ttype=this.value;save();build()};
+$("cnt").onchange=function(){st.cnt=this.value;save();build()};
 $("reset").onclick=function(){if(confirm("苦手の記録をすべて消しますか?")){st={ng:{},off:{},mig:2};save();drawPanel();btnText();build()}};
-drawPanel();btnText();build();
+$("cnt").value=st.cnt||"0";$("ttype").value=st.ttype||"c";drawPanel();btnText();build();
 </script>
 <script>
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
